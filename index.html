@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#1f2937">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon.svg">
+<title>Sudoku</title>
+<style>
+:root{--bg:#f3f4f6;--card:#fff;--ink:#111827;--mut:#6b7280;--line:#9ca3af;--thin:#e5e7eb;--sel:#bfdbfe;--peer:#e8f0fe;--same:#c7d2fe;--given:#111827;--mine:#2563eb;--err:#dc2626;--errbg:#fee2e2;--acc:#2563eb;--hint:#fde68a}
+@media(prefers-color-scheme:dark){:root{--bg:#0f172a;--card:#1e293b;--ink:#f1f5f9;--mut:#94a3b8;--line:#64748b;--thin:#334155;--sel:#1d4ed8;--peer:#273449;--same:#3730a3;--given:#f1f5f9;--mine:#60a5fa;--errbg:#450a0a;--err:#f87171;--hint:#78350f}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;touch-action:manipulation}
+#app{max-width:480px;margin:0 auto;padding:10px 12px calc(14px + env(safe-area-inset-bottom))}
+header{display:flex;justify-content:space-between;align-items:center;margin:4px 0 8px}
+header h1{font-size:18px;margin:0}
+.info{display:flex;gap:14px;font-size:14px;color:var(--mut)}
+.info b{color:var(--ink);font-variant-numeric:tabular-nums}
+button{font:inherit;color:inherit;border:0;background:var(--card);border-radius:10px;padding:8px 12px;cursor:pointer}
+button:active{filter:brightness(.92)}
+#board{display:grid;grid-template-columns:repeat(9,1fr);aspect-ratio:1;background:var(--card);border:2px solid var(--ink);border-radius:6px;overflow:hidden;user-select:none}
+.c{position:relative;display:flex;align-items:center;justify-content:center;font-size:clamp(20px,6.4vw,32px);border-right:1px solid var(--thin);border-bottom:1px solid var(--thin);cursor:pointer;color:var(--mine)}
+.c.g{color:var(--given);font-weight:600}
+.c:nth-child(3n){border-right:2px solid var(--line)}
+.c:nth-child(9n){border-right:0}
+.c:nth-child(n+19):nth-child(-n+27),.c:nth-child(n+46):nth-child(-n+54){border-bottom:2px solid var(--line)}
+.c:nth-child(n+73){border-bottom:0}
+.c.p{background:var(--peer)}.c.s2{background:var(--same)}.c.sel{background:var(--sel)}
+.c.e{color:var(--err);background:var(--errbg)}
+.c.h{background:var(--hint);outline:2px solid #f59e0b;outline-offset:-2px}
+.nt{display:grid;grid-template-columns:repeat(3,1fr);width:100%;height:100%;font-size:clamp(8px,2.5vw,12px);color:var(--mut);font-weight:500}
+.nt i{font-style:normal;display:flex;align-items:center;justify-content:center}
+.nt i.hl{color:var(--acc);font-weight:800}
+#msg{min-height:38px;margin:8px 0 4px;font-size:14px;color:var(--mut);text-align:center;display:flex;align-items:center;justify-content:center}
+#tools{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin:4px 0 8px}
+#tools button{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;padding:8px 2px;color:var(--mut)}
+#tools button span{font-size:20px;line-height:1;color:var(--ink)}
+#tools button.on{background:var(--acc);color:#fff}#tools button.on span{color:#fff}
+#pad{display:grid;grid-template-columns:repeat(9,1fr);gap:5px}
+#pad button{font-size:clamp(22px,7vw,30px);padding:10px 0 4px;color:var(--mine);display:flex;flex-direction:column;align-items:center;line-height:1}
+#pad button small{font-size:10px;color:var(--mut);margin-top:3px;min-height:12px}
+#pad button.done{opacity:.25}
+dialog{border:0;border-radius:16px;background:var(--card);color:var(--ink);padding:20px;width:min(92vw,400px);box-shadow:0 20px 50px #0008}
+dialog::backdrop{background:#0008}
+dialog h2{margin:0 0 12px;font-size:20px}
+.lv{display:grid;gap:8px}
+.lv button{background:var(--bg);text-align:left;padding:12px 14px;display:flex;justify-content:space-between}
+.lv button small{color:var(--mut)}
+.row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--thin)}
+.row input{width:22px;height:22px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+td,th{padding:6px 4px;text-align:right;border-bottom:1px solid var(--thin)}th:first-child,td:first-child{text-align:left}
+.pri{background:var(--acc);color:#fff;width:100%;margin-top:14px;padding:12px}
+.sec{width:100%;margin-top:8px;background:var(--bg);padding:12px}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Sudoku</h1>
+    <div class="info"><span id="lvl">–</span><span>Fehler <b id="mis">0/3</b></span><b id="time">00:00</b></div>
+    <div><button id="bPause" title="Pause">⏸</button> <button id="bMenu" title="Menü">☰</button></div>
+  </header>
+  <div id="board"></div>
+  <div id="msg"></div>
+  <div id="tools">
+    <button id="bUndo"><span>↶</span>Zurück</button>
+    <button id="bErase"><span>⌫</span>Löschen</button>
+    <button id="bNotes"><span>✎</span>Notizen</button>
+    <button id="bAuto"><span>✨</span>Auto-Notiz</button>
+    <button id="bHint"><span>💡</span>Tipp</button>
+  </div>
+  <div id="pad"></div>
+</div>
+
+<dialog id="dNew"><h2>Neues Spiel</h2><div class="lv" id="lvList"></div><button class="sec" id="dNewClose">Abbrechen</button></dialog>
+<dialog id="dMenu"><h2>Menü</h2>
+  <button class="pri" id="mNew" style="margin-top:0">Neues Spiel</button>
+  <button class="sec" id="mRestart">Dieses Rätsel neu starten</button>
+  <button class="sec" id="mStats">Statistik</button>
+  <button class="sec" id="mSet">Einstellungen</button>
+  <button class="sec" id="mClose">Schließen</button></dialog>
+<dialog id="dSet"><h2>Einstellungen</h2>
+  <label class="row">Fehler sofort anzeigen<input type="checkbox" id="oCheck"></label>
+  <label class="row">Nach 3 Fehlern verloren<input type="checkbox" id="oLimit"></label>
+  <label class="row">Gleiche Zahlen hervorheben<input type="checkbox" id="oSame"></label>
+  <label class="row">Zeile/Spalte/Block hervorheben<input type="checkbox" id="oPeer"></label>
+  <label class="row">Zahl-Tasten ausblenden, wenn 9× gesetzt<input type="checkbox" id="oDone"></label>
+  <label class="row">Zeit anzeigen<input type="checkbox" id="oTimer"></label>
+  <button class="pri" id="sClose">Fertig</button></dialog>
+<dialog id="dStats"><h2>Statistik</h2><div id="statBody"></div><button class="pri" id="stClose">Schließen</button></dialog>
+<dialog id="dEnd"><h2 id="endT"></h2><p id="endP"></p><button class="pri" id="endNew">Neues Spiel</button></dialog>
+<dialog id="dPause"><h2>Pausiert</h2><button class="pri" id="resume">Weiter</button></dialog>
+
+<script src="engine.js"></script>
+<script>
+const E = SudokuEngine, $ = (s) => document.querySelector(s);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+};
+const defaults = { check: true, limit: false, same: true, peer: true, done: true, timer: true };
+let opt = Object.assign({}, defaults, store.get('sdk-opt', {}));
+let stats = store.get('sdk-stats', {});
+let G = null, sel = -1, notesMode = false, hintState = null, tick = null, paused = false;
+
+const bit = E.bit;
+const fmt = (s) => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+
+/* ---------- Aufbau ---------- */
+const boardEl = $('#board'), cells = [];
+for (let i = 0; i < 81; i++) {
+  const d = document.createElement('div'); d.className = 'c';
+  d.onclick = () => { sel = i; hintState = null; render(); };
+  boardEl.appendChild(d); cells.push(d);
+}
+const padEl = $('#pad');
+for (let d = 1; d <= 9; d++) {
+  const b = document.createElement('button'); b.innerHTML = `${d}<small></small>`;
+  b.onclick = () => input(d); padEl.appendChild(b);
+}
+
+/* ---------- Spiel ---------- */
+function newGame(levelId) {
+  $('#msg').textContent = 'Rätsel wird erzeugt …';
+  setTimeout(() => {
+    const r = E.generate(levelId);
+    G = { level: levelId, puzzle: r.puzzle, solution: r.solution, vals: r.puzzle.slice(), notes: new Array(81).fill(0),
+          hist: [], mistakes: 0, secs: 0, hints: 0, over: false };
+    sel = G.vals.findIndex((v) => !v); hintState = null; save(); startTimer(); render();
+  }, 30);
+}
+function save() { if (G) store.set('sdk-game', G); }
+function snap() { G.hist.push({ v: G.vals.slice(), n: G.notes.slice(), m: G.mistakes }); if (G.hist.length > 300) G.hist.shift(); }
+
+function input(d) {
+  if (!G || G.over || paused || sel < 0 || G.puzzle[sel]) return;
+  hintState = null;
+  if (notesMode) {
+    if (G.vals[sel]) return;
+    snap(); G.notes[sel] ^= bit(d);
+  } else {
+    if (G.vals[sel] === d) return;
+    snap(); G.vals[sel] = d; G.notes[sel] = 0;
+    if (d !== G.solution[sel]) { if (opt.check) G.mistakes++; }
+    else E.PEERS[sel].forEach((p) => G.notes[p] &= ~bit(d));
+  }
+  afterMove();
+}
+function erase() {
+  if (!G || G.over || sel < 0 || G.puzzle[sel] || (!G.vals[sel] && !G.notes[sel])) return;
+  snap(); G.vals[sel] = 0; G.notes[sel] = 0; hintState = null; afterMove();
+}
+function undo() {
+  if (!G || G.over || !G.hist.length) return;
+  const h = G.hist.pop(); G.vals = h.v; G.notes = h.n; G.mistakes = h.m; hintState = null; render(); save();
+}
+function autoNotes() {
+  if (!G || G.over) return;
+  snap(); const c = E.candidates(G.vals);
+  for (let i = 0; i < 81; i++) G.notes[i] = G.vals[i] ? 0 : c[i];
+  hintState = null; render(); save();
+}
+function hint() {
+  if (!G || G.over || paused) return;
+  if (hintState && !hintState.wrong) { // zweiter Klick: anwenden
+    snap(); G.vals[hintState.cell] = hintState.digit; G.notes[hintState.cell] = 0; G.hints++;
+    E.PEERS[hintState.cell].forEach((p) => G.notes[p] &= ~bit(hintState.digit));
+    sel = hintState.cell; hintState = null; afterMove(); return;
+  }
+  const h = E.hint(G.vals, G.solution); if (!h) return;
+  hintState = h; sel = h.cell; render();
+  $('#msg').textContent = h.text + (h.wrong ? '' : '  (Nochmal tippen = einsetzen)');
+}
+function afterMove() {
+  render(); save();
+  if (G.vals.every((v, i) => v === G.solution[i])) return finish(true);
+  if (opt.limit && G.mistakes >= 3) finish(false);
+}
+function finish(win) {
+  G.over = true; clearInterval(tick); save(); render();
+  if (win) {
+    const s = stats[G.level] = stats[G.level] || { played: 0, won: 0, best: 0, total: 0 };
+    s.played++; s.won++; s.total += G.secs; if (!s.best || G.secs < s.best) s.best = G.secs;
+    store.set('sdk-stats', stats);
+    $('#endT').textContent = '🎉 Geschafft!';
+    $('#endP').textContent = `Zeit ${fmt(G.secs)} · Fehler ${G.mistakes} · Tipps ${G.hints}` + (s.best === G.secs ? ' · Neue Bestzeit!' : '');
+  } else {
+    (stats[G.level] = stats[G.level] || { played: 0, won: 0, best: 0, total: 0 }).played++;
+    store.set('sdk-stats', stats);
+    $('#endT').textContent = 'Verloren';
+    $('#endP').textContent = 'Drei Fehler – das nächste Mal klappt es!';
+  }
+  $('#dEnd').showModal();
+}
+function startTimer() {
+  clearInterval(tick);
+  tick = setInterval(() => { if (G && !G.over && !paused && !document.hidden) { G.secs++; $('#time').textContent = fmt(G.secs); if (G.secs % 10 === 0) save(); } }, 1000);
+}
+
+/* ---------- Anzeige ---------- */
+function render() {
+  if (!G) return;
+  const lv = E.LEVELS.find((l) => l.id === G.level);
+  $('#lvl').textContent = lv ? lv.name : '';
+  $('#mis').textContent = opt.limit ? `${G.mistakes}/3` : String(G.mistakes);
+  $('#time').textContent = fmt(G.secs); $('#time').style.display = opt.timer ? '' : 'none';
+  const sv = sel >= 0 ? G.vals[sel] : 0;
+  const peers = sel >= 0 ? new Set(E.PEERS[sel]) : new Set();
+  const counts = new Array(10).fill(0);
+  G.vals.forEach((v) => counts[v]++);
+  for (let i = 0; i < 81; i++) {
+    const v = G.vals[i], el = cells[i];
+    let cls = 'c';
+    if (G.puzzle[i]) cls += ' g';
+    if (opt.peer && peers.has(i)) cls += ' p';
+    if (opt.same && sv && v === sv && i !== sel) cls += ' s2';
+    if (i === sel) cls += ' sel';
+    if (v && !G.puzzle[i] && v !== G.solution[i] && opt.check) cls += ' e';
+    if (hintState && hintState.cell === i) cls += ' h';
+    el.className = cls;
+    if (v) el.textContent = v;
+    else if (G.notes[i]) {
+      let h = '<div class="nt">';
+      for (let d = 1; d <= 9; d++) h += `<i class="${sv === d && opt.same ? 'hl' : ''}">${G.notes[i] & bit(d) ? d : ''}</i>`;
+      el.innerHTML = h + '</div>';
+    } else el.textContent = '';
+  }
+  [...padEl.children].forEach((b, k) => {
+    const left = 9 - counts[k + 1];
+    b.classList.toggle('done', opt.done && left <= 0);
+    b.querySelector('small').textContent = left > 0 ? left : '';
+  });
+  $('#bNotes').classList.toggle('on', notesMode);
+  if (!hintState) $('#msg').textContent = notesMode ? 'Notizmodus an' : '';
+}
+
+/* ---------- Dialoge ---------- */
+const lvDesc = { anfaenger: 'viele Zahlen, nur einfache Schritte', leicht: 'einfache Logik', mittel: 'versteckte Singles', schwer: 'Paare & Linien-Tricks', experte: 'wenige Zahlen, knifflig' };
+E.LEVELS.forEach((l) => {
+  const b = document.createElement('button');
+  const s = stats[l.id];
+  b.innerHTML = `<span>${l.name}<br><small>${lvDesc[l.id]}</small></span><small>${s ? s.won + ' gewonnen' : ''}</small>`;
+  b.onclick = () => { $('#dNew').close(); newGame(l.id); };
+  $('#lvList').appendChild(b);
+});
+const open = (id) => { $(id).showModal(); };
+$('#bMenu').onclick = () => open('#dMenu');
+$('#mClose').onclick = () => $('#dMenu').close();
+$('#mNew').onclick = () => { $('#dMenu').close(); open('#dNew'); };
+$('#dNewClose').onclick = () => $('#dNew').close();
+$('#endNew').onclick = () => { $('#dEnd').close(); open('#dNew'); };
+$('#mRestart').onclick = () => { $('#dMenu').close(); if (!G) return; G.vals = G.puzzle.slice(); G.notes.fill(0); G.hist = []; G.mistakes = 0; G.secs = 0; G.hints = 0; G.over = false; hintState = null; startTimer(); render(); save(); };
+$('#mSet').onclick = () => { $('#dMenu').close(); for (const k in defaults) $('#o' + k[0].toUpperCase() + k.slice(1)).checked = opt[k]; open('#dSet'); };
+$('#sClose').onclick = () => $('#dSet').close();
+for (const k in defaults) $('#o' + k[0].toUpperCase() + k.slice(1)).onchange = (e) => { opt[k] = e.target.checked; store.set('sdk-opt', opt); render(); };
+$('#mStats').onclick = () => {
+  $('#dMenu').close();
+  let h = '<table><tr><th>Level</th><th>Siege</th><th>Beste</th><th>Ø</th></tr>';
+  E.LEVELS.forEach((l) => { const s = stats[l.id]; h += `<tr><td>${l.name}</td><td>${s ? s.won + '/' + s.played : '–'}</td><td>${s && s.best ? fmt(s.best) : '–'}</td><td>${s && s.won ? fmt(Math.round(s.total / s.won)) : '–'}</td></tr>`; });
+  $('#statBody').innerHTML = h + '</table>'; open('#dStats');
+};
+$('#stClose').onclick = () => $('#dStats').close();
+$('#bPause').onclick = () => { if (!G || G.over) return; paused = true; boardEl.style.visibility = 'hidden'; open('#dPause'); };
+$('#resume').onclick = () => { paused = false; boardEl.style.visibility = ''; $('#dPause').close(); };
+$('#dPause').addEventListener('cancel', (e) => e.preventDefault());
+$('#bUndo').onclick = undo; $('#bErase').onclick = erase; $('#bAuto').onclick = autoNotes; $('#bHint').onclick = hint;
+$('#bNotes').onclick = () => { notesMode = !notesMode; hintState = null; render(); };
+
+document.addEventListener('keydown', (e) => {
+  if (document.querySelector('dialog[open]')) return;
+  if (/^[1-9]$/.test(e.key)) input(+e.key);
+  else if (e.key === 'Backspace' || e.key === 'Delete' || e.key === '0') erase();
+  else if (e.key.toLowerCase() === 'n') { notesMode = !notesMode; render(); }
+  else if (e.key.toLowerCase() === 'z' || (e.key === 'z' && e.ctrlKey)) undo();
+  else if (e.key.toLowerCase() === 'h') hint();
+  else if (e.key.startsWith('Arrow')) {
+    e.preventDefault(); if (sel < 0) sel = 40;
+    const r = Math.floor(sel / 9), c = sel % 9;
+    if (e.key === 'ArrowUp') sel = ((r + 8) % 9) * 9 + c;
+    if (e.key === 'ArrowDown') sel = ((r + 1) % 9) * 9 + c;
+    if (e.key === 'ArrowLeft') sel = r * 9 + (c + 8) % 9;
+    if (e.key === 'ArrowRight') sel = r * 9 + (c + 1) % 9;
+    hintState = null; render();
+  }
+});
+document.addEventListener('visibilitychange', save);
+
+/* ---------- Start ---------- */
+const saved = store.get('sdk-game', null);
+if (saved && !saved.over) { G = saved; sel = G.vals.findIndex((v) => !v); startTimer(); render(); }
+else open('#dNew');
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>
